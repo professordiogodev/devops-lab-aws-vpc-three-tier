@@ -10,8 +10,11 @@ done
 for a in $(aws ec2 describe-addresses --filters Name=tag:lab,Values=$L --query 'Addresses[].AllocationId' --output text); do aws ec2 release-address --allocation-id $a && echo "released Elastic IP $a"; done
 for V in $(aws ec2 describe-vpcs --filters Name=tag:lab,Values=$L --query 'Vpcs[].VpcId' --output text); do
   E=$(aws ec2 describe-vpc-endpoints --filters Name=vpc-id,Values=$V --query 'VpcEndpoints[].VpcEndpointId' --output text)
-  [ -n "$E" ] && aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $E >/dev/null 2>&1
-  for _ in 1 2 3 4 5 6; do
+  if [ -n "$E" ]; then
+    aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $E >/dev/null 2>&1 && echo "deleting VPC endpoint(s) $E (this can take a few minutes)"
+    for _ in $(seq 1 30); do [ -z "$(aws ec2 describe-vpc-endpoints --filters Name=vpc-id,Values=$V --query 'VpcEndpoints[?State!=`deleted`].VpcEndpointId' --output text)" ] && break; sleep 10; done
+  fi
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
     for g in $(aws ec2 describe-security-groups --filters Name=vpc-id,Values=$V --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text); do aws ec2 delete-security-group --group-id $g >/dev/null 2>&1; done
     for a in $(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$V --query 'RouteTables[].Associations[?!Main].RouteTableAssociationId' --output text); do aws ec2 disassociate-route-table --association-id $a >/dev/null 2>&1; done
     for r in $(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$V --query 'RouteTables[?length(Associations[?Main])==`0`].RouteTableId' --output text); do aws ec2 delete-route-table --route-table-id $r >/dev/null 2>&1; done
