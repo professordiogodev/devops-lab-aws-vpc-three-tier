@@ -2,14 +2,21 @@
 
 ## The situation
 
-On Monday an external auditor reviews the Clippy network. You have read the checklist and it is short and strict:
+```text
+DESIGN INTERVIEW - Cloud engineer, round 3 of 3
+Interviewer : the platform lead, with the external auditor sitting in
+Question    : "Design and build the network for Clippy, then defend it."
+Format      : you build it for real, in the console, and every claim is tested
+```
+
+The auditor reads the checklist aloud. It is short and strict:
 
 1. The **web tier** may be public.
 2. The **app tier** may reach the internet (to download updates) **only through a NAT**, and nothing on the internet may initiate a connection to it.
 3. The **data tier** must have **no route to the internet in either direction**, and must accept PostgreSQL **from the app tier and from nothing else**: at two independent layers, so that one mistake does not open the door.
 4. Everything must survive the loss of one availability zone: two of each tier.
 
-You will design the address plan, build the whole VPC in the console (once, slowly, to understand every object), and then check it the way the auditor will. There are no servers in this lab: a network is a set of rules, and the rules are what gets audited.
+You will design the address plan, build the whole VPC in the console (once, slowly, to understand every object), and then check it the way the auditor will. There are no servers in this lab: a network is a set of rules, and the rules are what gets audited. The interviewer will not tell you what to click. They will ask why.
 
 > **Your mission**
 > - Plan the CIDR blocks on paper first
@@ -22,7 +29,7 @@ You will design the address plan, build the whole VPC in the console (once, slow
 
 ---
 
-## Part 0 - The plan, on paper
+## Round 1 - The plan, on paper
 
 Before you click anything write this down in `notes.md` (it is the first thing a reviewer asks for):
 
@@ -34,7 +41,7 @@ Before you click anything write this down in `notes.md` (it is the first thing a
 
 ---
 
-## Part 1 - Build the VPC
+## Round 2 - Build the VPC
 
 In the console (VPC → *Create VPC* → *VPC only*) and then each piece separately, so you see every object. Tag **everything** with `lab = aws-vpc-three-tier`.
 
@@ -53,7 +60,7 @@ In the console (VPC → *Create VPC* → *VPC only*) and then each piece separat
 
 ---
 
-## Part 2 - One security group per tier
+## Round 3 - One security group per tier
 
 Create `clippy-web`, `clippy-app` and `clippy-data` in the VPC, tagged `lab = aws-vpc-three-tier`:
 
@@ -67,7 +74,7 @@ Create `clippy-web`, `clippy-app` and `clippy-data` in the VPC, tagged `lab = aw
 
 ---
 
-## Part 3 - The second lock: a network ACL
+## Round 4 - The second lock: a network ACL
 
 A network ACL works on the whole **subnet**, is **stateless** and is checked before the security group. Create a custom ACL `clippy-data` and associate it with **both data subnets**. It must allow:
 
@@ -80,7 +87,7 @@ Nothing else: every other packet falls through to the final implicit `deny`.
 
 ---
 
-## Part 4 - Be the auditor
+## Round 5 - Be the auditor
 
 Answer these without running `verify.sh`, using the CLI:
 
@@ -93,7 +100,7 @@ aws ec2 describe-network-acls --filters "Name=tag:lab,Values=aws-vpc-three-tier"
 
 ---
 
-## Part 5 - Prove it
+## Round 6 - Prove it
 
 ```bash
 ./verify.sh
