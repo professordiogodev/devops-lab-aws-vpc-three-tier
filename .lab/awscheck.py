@@ -21,10 +21,15 @@ def aws(*a):
 
 
 check("no AWS keys in the repository", subprocess.run("git grep -lE 'AKIA[0-9A-Z]{16}' -- . ':!.lab' ':!verify.sh'", shell=True, capture_output=True, text=True).stdout.strip() == "")
-F = "Name=tag:lab,Values=aws-vpc-three-tier"
+try:
+    H = subprocess.check_output(["bash", ".lab/handle.sh"], stderr=subprocess.STDOUT, text=True).strip()
+except subprocess.CalledProcessError as e:
+    print(e.output.strip()); sys.exit(1)
+print("Your handle: %s (the checks look only at resources tagged student=%s)" % (H, H))
+F = ["Name=tag:lab,Values=aws-vpc-three-tier", "Name=tag:student,Values=" + H]
 print("== The VPC and its six subnets ==")
-vpcs = (aws("ec2", "describe-vpcs", "--filters", F) or {}).get("Vpcs", [])
-check("exactly one VPC tagged lab=aws-vpc-three-tier, a /16 in private address space", len(vpcs) == 1 and vpcs[0]["CidrBlock"].endswith("/16") and ipaddress.ip_network(vpcs[0]["CidrBlock"]).is_private)
+vpcs = (aws("ec2", "describe-vpcs", "--filters", *F) or {}).get("Vpcs", [])
+check("exactly one VPC tagged lab=aws-vpc-three-tier and student=%s, a /16" % H + " in private address space", len(vpcs) == 1 and vpcs[0]["CidrBlock"].endswith("/16") and ipaddress.ip_network(vpcs[0]["CidrBlock"]).is_private)
 if len(vpcs) != 1:
     print("\nNothing else can be checked.\n%d check(s) failed, %d passed" % (failed, passed)); sys.exit(1)
 vpc = vpcs[0]; V = vpc["VpcId"]; VF = "Name=vpc-id,Values=" + V
@@ -58,6 +63,11 @@ check("data subnets: NO default route at all (no internet gateway, no NAT: not i
 nats = (aws("ec2", "describe-nat-gateways", "--filter", VF, "Name=state,Values=available,pending") or {}).get("NatGateways", [])
 web_ids = {s["SubnetId"] for s in tier["web"]}
 check("a NAT Gateway is available and sits in a WEB (public) subnet", bool(nats) and all(n["SubnetId"] in web_ids for n in nats))
+eip_ids = [n["NatGatewayAddresses"][0].get("AllocationId") for n in nats if n.get("NatGatewayAddresses")]
+eips = (aws("ec2", "describe-addresses", "--allocation-ids", *eip_ids) or {}).get("Addresses", []) if eip_ids else []
+def has_student(o):
+    return any(t["Key"] == "student" and t["Value"] == H for t in o.get("Tags", []))
+check("the NAT Gateway and its Elastic IP are tagged student=%s (the teardown finds them by that tag)" % H, bool(nats) and all(has_student(n) for n in nats) and bool(eips) and all(has_student(e) for e in eips))
 check("an internet gateway is attached", len((aws("ec2", "describe-internet-gateways", "--filters", "Name=attachment.vpc-id,Values=" + V) or {}).get("InternetGateways", [])) == 1)
 
 print("== Security groups: each tier trusts only the one in front of it ==")

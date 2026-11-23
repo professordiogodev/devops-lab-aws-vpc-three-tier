@@ -43,7 +43,13 @@ Before you click anything write this down in `notes.md` (it is the first thing a
 
 ## Round 2 - Build the VPC
 
-In the console (VPC → *Create VPC* → *VPC only*) and then each piece separately, so you see every object. Tag **everything** with `lab = aws-vpc-three-tier`.
+Everyone on the course shares one AWS account, so you tag **everything** with your **handle** (your IAM user name, shortened) next to the lab tag. Print it once:
+
+```bash
+bash .lab/handle.sh
+```
+
+In the console (VPC → *Create VPC* → *VPC only*) and then each piece separately, so you see every object. Tag **everything** with `lab = aws-vpc-three-tier` **and** `student = <that handle>`. Never touch a resource that carries someone else's.
 
 1. The VPC and an **internet gateway** attached to it.
 2. The six subnets. Turn on **auto-assign public IPv4** on the **web** subnets only.
@@ -62,7 +68,7 @@ In the console (VPC → *Create VPC* → *VPC only*) and then each piece separat
 
 ## Round 3 - One security group per tier
 
-Create `clippy-web`, `clippy-app` and `clippy-data` in the VPC, tagged `lab = aws-vpc-three-tier`:
+Create `clippy-web`, `clippy-app` and `clippy-data` in the VPC, tagged `lab = aws-vpc-three-tier` and `student = <handle>`:
 
 | Group | Inbound |
 |-------|---------|
@@ -92,8 +98,8 @@ Nothing else: every other packet falls through to the final implicit `deny`.
 Answer these without running `verify.sh`, using the CLI:
 
 ```bash
-aws ec2 describe-route-tables --filters "Name=tag:lab,Values=aws-vpc-three-tier" --query 'RouteTables[].[Tags[?Key==`Name`]|[0].Value,Routes[].[DestinationCidrBlock,GatewayId,NatGatewayId]]'
-aws ec2 describe-network-acls --filters "Name=tag:lab,Values=aws-vpc-three-tier"
+aws ec2 describe-route-tables --filters "Name=tag:student,Values=$(bash .lab/handle.sh)" --query 'RouteTables[].[Tags[?Key==`Name`]|[0].Value,Routes[].[DestinationCidrBlock,GatewayId,NatGatewayId]]'
+aws ec2 describe-network-acls --filters "Name=tag:student,Values=$(bash .lab/handle.sh)"
 ```
 
 "Can a host in the data subnets reach the internet?" Find **two independent ways** to prove the answer is no. (Optional: the console's **Reachability Analyzer** can trace a path between two network interfaces. It costs about ten cents per analysis, and needs resources to point at, so it is for a real environment.)

@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Deletes the NAT Gateway, the Elastic IP, the network and the VPC (everything tagged lab=aws-vpc-three-tier). Run with: ./teardown.sh
+# Deletes the NAT Gateway, the Elastic IP, the network and the VPC (everything tagged lab=aws-vpc-three-tier and with your handle). Run with: ./teardown.sh
 set -u
+H=$(bash .lab/handle.sh) || exit 1
+echo "Your handle: $H (only resources tagged student=$H are touched)"
 aws sts get-caller-identity >/dev/null 2>&1 || { echo "No working AWS credentials." >&2; exit 1; }
 L=aws-vpc-three-tier
-for n in $(aws ec2 describe-nat-gateways --filter Name=tag:lab,Values=$L Name=state,Values=available,pending --query 'NatGateways[].NatGatewayId' --output text); do
+T="Name=tag:lab,Values=$L Name=tag:student,Values=$H"
+for n in $(aws ec2 describe-nat-gateways --filter $T Name=state,Values=available,pending --query 'NatGateways[].NatGatewayId' --output text); do
   aws ec2 delete-nat-gateway --nat-gateway-id $n >/dev/null && echo "deleting NAT Gateway $n (takes a minute)"
   for _ in $(seq 1 40); do [ "$(aws ec2 describe-nat-gateways --nat-gateway-ids $n --query 'NatGateways[0].State' --output text)" = deleted ] && break; sleep 5; done
 done
-for a in $(aws ec2 describe-addresses --filters Name=tag:lab,Values=$L --query 'Addresses[].AllocationId' --output text); do aws ec2 release-address --allocation-id $a && echo "released Elastic IP $a"; done
-for V in $(aws ec2 describe-vpcs --filters Name=tag:lab,Values=$L --query 'Vpcs[].VpcId' --output text); do
+for a in $(aws ec2 describe-addresses --filters $T --query 'Addresses[].AllocationId' --output text); do
+  # the NAT Gateway's network interface takes a few seconds to go away: try again
+  for _ in 1 2 3 4 5 6 7 8 9 10; do aws ec2 release-address --allocation-id $a >/dev/null 2>&1 && { echo "released Elastic IP $a"; break; }; sleep 6; done
+done
+for V in $(aws ec2 describe-vpcs --filters $T --query 'Vpcs[].VpcId' --output text); do
   E=$(aws ec2 describe-vpc-endpoints --filters Name=vpc-id,Values=$V --query 'VpcEndpoints[].VpcEndpointId' --output text)
   if [ -n "$E" ]; then
     aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $E >/dev/null 2>&1 && echo "deleting VPC endpoint(s) $E (this can take a few minutes)"
